@@ -50,3 +50,19 @@ async def investigate(websocket: WebSocket, repo_id: str):
         except:
             pass
 
+@router.get("/investigations/history")
+def get_investigation_history(target: str = None, limit: int = 10):
+    from app.agent.memory import memory_manager
+    if target:
+        results = memory_manager.find_by_target(target)
+    else:
+        results = memory_manager.get_recent(limit=limit)
+    return {"investigations": results}
+
+@router.delete("/investigations/history")
+def delete_investigation_history():
+    from app.agent.memory import memory_manager
+    memory_manager.clear()
+    return {"status": "Memory cleared"}
+
+

@@ -182,6 +182,22 @@ function App() {
     wsRef.current = ws
   }
 
+  // History State
+  const [recentHistory, setRecentHistory] = useState<any[]>([])
+
+  useEffect(() => {
+    fetchHistory()
+  }, [])
+
+  const fetchHistory = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/investigations/history?limit=5`)
+      setRecentHistory(res.data.investigations || [])
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const sendMessage = async () => {
     if (!input.trim() || !activeRepo) return
     const query = input
@@ -201,6 +217,7 @@ function App() {
       if (resultData.affected_functions) {
         loadGraph(activeRepo.id, resultData.affected_functions)
       }
+      fetchHistory()
     } catch (e) {
       console.error("API Investigation Error:", e)
     } finally {
@@ -247,28 +264,55 @@ function App() {
           </button>
         </div>
         
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-          <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Repositories</h2>
-          <div className="space-y-2">
-            {repos.map(repo => (
-              <button
-                key={repo.id}
-                onClick={() => selectRepo(repo)}
-                className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all duration-200 ${activeRepo?.id === repo.id ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'hover:bg-slate-700/50 text-slate-300 border border-transparent'}`}
-              >
-                <FileCode2 size={18} />
-                <div className="truncate">
-                  <div className="font-medium truncate">{repo.name}</div>
-                  <div className="text-[10px] text-slate-500 truncate">{repo.analysis_status}</div>
-                </div>
-              </button>
-            ))}
-            {repos.length === 0 && (
-              <div className="text-sm text-slate-500 text-center py-4">No repos found.<br/>Click "+ Import Repository" above</div>
-            )}
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar space-y-6">
+          <div>
+            <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Repositories</h2>
+            <div className="space-y-2">
+              {repos.map(repo => (
+                <button
+                  key={repo.id}
+                  onClick={() => selectRepo(repo)}
+                  className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all duration-200 ${activeRepo?.id === repo.id ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30' : 'hover:bg-slate-700/50 text-slate-300 border border-transparent'}`}
+                >
+                  <FileCode2 size={18} />
+                  <div className="truncate">
+                    <div className="font-medium truncate">{repo.name}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{repo.analysis_status}</div>
+                  </div>
+                </button>
+              ))}
+              {repos.length === 0 && (
+                <div className="text-sm text-slate-500 text-center py-4">No repos found.<br/>Click "+ Import Repository" above</div>
+              )}
+            </div>
           </div>
+
+          {/* Recent Diagnoses Widget */}
+          {recentHistory.length > 0 && (
+            <div>
+              <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Recent Diagnoses</h2>
+              <div className="space-y-2">
+                {recentHistory.map((item, idx) => (
+                  <div key={idx} className="p-2.5 rounded-lg bg-slate-900/60 border border-slate-700/60 text-xs">
+                    <div className="font-medium text-slate-200 truncate">{item.target}</div>
+                    <div className="flex items-center justify-between mt-1 text-[10px]">
+                      <span className={`px-1.5 py-0.5 rounded font-bold ${
+                        item.risk === 'CRITICAL' ? 'bg-red-500/20 text-red-400' :
+                        item.risk === 'HIGH' ? 'bg-orange-500/20 text-orange-400' :
+                        item.risk === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
+                      }`}>
+                        {item.risk} ({item.risk_score})
+                      </span>
+                      <span className="text-slate-500">{item.timestamp ? item.timestamp.substring(11, 19) : ''}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
 
       {/* Import Modal */}
       <AnimatePresence>
@@ -458,7 +502,7 @@ function App() {
                 <div className="p-4 border-b border-slate-700 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Terminal size={18} className="text-teal-400"/>
-                    <h3 className="font-semibold text-slate-200">AI Detective</h3>
+                    <h3 className="font-semibold text-slate-200">Ask the Agent</h3>
                   </div>
                   <span className="text-[11px] text-slate-400 bg-slate-700/60 px-2 py-0.5 rounded">Scrollable</span>
                 </div>

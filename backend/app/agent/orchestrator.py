@@ -60,6 +60,21 @@ class RippleOrchestrator:
 
         self._add_trace(f"Target identified: {target_symbol}")
 
+        # Check ephemeral memory for prior investigations on this target (supporting context)
+        try:
+            from app.agent.memory import memory_manager
+            past_memories = memory_manager.find_by_target(target_symbol)
+            if past_memories:
+                prior = past_memories[0]
+                self.evidence_collector.add(
+                    "SEARCH",
+                    f"Ephemeral Memory: Prior investigation of {target_symbol} recorded risk {prior.get('risk')} at {prior.get('timestamp')[:19]}",
+                    {"prior_target": prior.get("target"), "prior_risk": prior.get("risk"), "prior_summary": prior.get("summary")}
+                )
+                self._add_trace(f"Memory check: Retrieved 1 prior investigation for {target_symbol}")
+        except Exception as e:
+            print(f"[Orchestrator] Ephemeral memory retrieval warning: {e}")
+
         # 2. Definition discovery
         def_res = agent_tools.find_definition(self.repo_id, target_symbol)
         if def_res.get("success") and def_res.get("result"):
@@ -144,7 +159,7 @@ class RippleOrchestrator:
 
         self._add_trace("Investigation conclusion generated")
 
-        return InvestigationResponse(
+        response = InvestigationResponse(
             query=query,
             target=target_symbol,
             impact=impact,
@@ -155,6 +170,16 @@ class RippleOrchestrator:
             affected_functions=impact.affected_functions,
             trace=self.trace
         )
+
+        # Store in ephemeral memory safely
+        try:
+            from app.agent.memory import memory_manager
+            memory_manager.add_investigation(response, repository_id=self.repo_id)
+        except Exception as e:
+            print(f"[Orchestrator] Ephemeral memory save warning: {e}")
+
+        return response
+
 
     async def investigate_stream(self, query: str) -> AsyncGenerator[str, None]:
         """

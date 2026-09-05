@@ -162,7 +162,7 @@ class RippleAgent:
                 headers = {
                     "Authorization": f"Bearer {api_key}",
                     "HTTP-Referer": "https://ripple.ai",
-                    "X-Title": "Ripple AI Detective",
+                    "X-Title": "Ripple AI Code Impact Analyzer & Investigator",
                     "Content-Type": "application/json"
                 }
                 
