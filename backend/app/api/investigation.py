@@ -7,8 +7,10 @@ router = APIRouter()
 @router.websocket("/investigate/{repo_id}")
 async def investigate(websocket: WebSocket, repo_id: str):
     await websocket.accept()
-    if not os.environ.get("GEMINI_API_KEY"):
-        await websocket.send_json({"type": "error", "message": "GEMINI_API_KEY environment variable is not set."})
+    from app.main import _load_env
+    _load_env()
+    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("OPENROUTER_API_KEY"):
+        await websocket.send_json({"type": "error", "message": "Neither GEMINI_API_KEY nor OPENROUTER_API_KEY environment variable is set."})
         await websocket.close()
         return
         

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { ReactFlow, Controls, Background, applyNodeChanges, applyEdgeChanges, Node, Edge, NodeChange, EdgeChange, addEdge, Connection } from '@xyflow/react'
+import { ReactFlow, Controls, Background, applyNodeChanges, applyEdgeChanges, type Node, type Edge, type NodeChange, type EdgeChange } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import axios from 'axios'
-import { Search, Play, FileCode2, Network, MessageSquare, Terminal } from 'lucide-react'
+import { Play, FileCode2, Network, Terminal } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const API_BASE = 'http://localhost:8000/api/v1'
@@ -26,6 +26,13 @@ function App() {
   const [messages, setMessages] = useState<{type: string, content: string}[]>([])
   const [input, setInput] = useState("")
   const wsRef = useRef<WebSocket | null>(null)
+  const chatContainerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
+    }
+  }, [messages])
 
   useEffect(() => {
     fetchRepos()
@@ -35,6 +42,9 @@ function App() {
     try {
       const res = await axios.get(`${API_BASE}/repositories`)
       setRepos(res.data)
+      if (res.data.length > 0) {
+        selectRepo(res.data[0])
+      }
     } catch (e) {
       console.error(e)
     }
@@ -43,7 +53,7 @@ function App() {
   const loadGraph = async (repoId: string) => {
     try {
       const res = await axios.get(`${API_BASE}/repositories/${repoId}/graph`)
-      const fetchedNodes = res.data.nodes.map((n: any, i: number) => ({
+      const fetchedNodes = res.data.nodes.map((n: any) => ({
         id: n.id,
         data: { label: n.label },
         position: { x: Math.random() * 500, y: Math.random() * 500 },
@@ -137,20 +147,20 @@ function App() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col relative">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
         {activeRepo ? (
           <>
             {/* Top Bar */}
-            <div className="h-14 bg-slate-800/80 backdrop-blur-md border-b border-slate-700 flex items-center px-6 z-10 absolute top-0 w-full">
+            <div className="h-14 bg-slate-800/80 backdrop-blur-md border-b border-slate-700 flex items-center px-6 z-10 absolute top-0 left-0 right-0">
               <span className="font-semibold text-slate-200">{activeRepo.name}</span>
               <span className="ml-3 px-2 py-0.5 rounded text-xs bg-slate-700 text-slate-300">{activeRepo.path}</span>
             </div>
 
             {/* Content Area (Graph + Chat) */}
-            <div className="flex-1 flex pt-14">
+            <div className="flex-1 flex h-[calc(100vh-3.5rem)] mt-14 overflow-hidden">
               
               {/* Graph Area */}
-              <div className="flex-1 h-full relative">
+              <div className="flex-1 h-full relative overflow-hidden">
                 <ReactFlow 
                   nodes={nodes} 
                   edges={edges}
@@ -164,20 +174,23 @@ function App() {
               </div>
 
               {/* Chat Area */}
-              <div className="w-[400px] border-l border-slate-700 bg-slate-800/90 backdrop-blur-xl flex flex-col shadow-2xl">
-                <div className="p-4 border-b border-slate-700 flex items-center gap-2">
-                  <Terminal size={18} className="text-teal-400"/>
-                  <h3 className="font-semibold">AI Detective</h3>
+              <div className="w-[420px] h-full border-l border-slate-700 bg-slate-800/90 backdrop-blur-xl flex flex-col shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-slate-700 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Terminal size={18} className="text-teal-400"/>
+                    <h3 className="font-semibold text-slate-200">AI Detective</h3>
+                  </div>
+                  <span className="text-[11px] text-slate-400 bg-slate-700/60 px-2 py-0.5 rounded">Scrollable</span>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div ref={chatContainerRef} className="flex-1 overflow-y-scroll p-4 space-y-4 custom-scrollbar min-h-0">
                   <AnimatePresence>
                     {messages.map((msg, i) => (
                       <motion.div 
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         key={i} 
-                        className={`p-3 rounded-lg text-sm border ${
+                        className={`p-3 rounded-lg text-sm border whitespace-pre-wrap break-words ${
                           msg.type === 'user' ? 'bg-blue-500/20 border-blue-500/30 text-blue-100 ml-8 rounded-tr-none' :
                           msg.type === 'action' ? 'bg-amber-500/10 border-amber-500/20 text-amber-200/80 font-mono text-xs mr-8' :
                           msg.type === 'thought' ? 'bg-slate-700/50 border-slate-600 text-slate-300 mr-8 italic' :
