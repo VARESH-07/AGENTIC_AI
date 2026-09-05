@@ -3,7 +3,8 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 class RepositoryCreate(BaseModel):
-    path: str = Field(..., description="Absolute path to the local Git repository")
+    path: Optional[str] = Field(None, description="Absolute path to the local Git repository")
+    git_url: Optional[str] = Field(None, description="Git clone URL (HTTPS/SSH)")
 
 class RepositoryResponse(BaseModel):
     id: str
@@ -61,3 +62,41 @@ class CodeSearchResponse(BaseModel):
     content: str
     symbol: Optional[str] = None
     context: Optional[List[str]] = None
+
+class EvidenceItem(BaseModel):
+    type: str  # CODE, GRAPH, GIT, TEST, SEARCH
+    summary: str
+    details: Dict[str, Any] = {}
+
+class ImpactChain(BaseModel):
+    target: str
+    chain: List[str] = []
+    affected_functions: List[str] = []
+    affected_files: List[str] = []
+
+class RiskAssessment(BaseModel):
+    level: str  # LOW, MEDIUM, HIGH, CRITICAL
+    score: int
+    reasons: List[str] = []
+
+class RootCause(BaseModel):
+    status: str  # CONFIRMED, LIKELY, POSSIBLE
+    explanation: str
+    confidence: str  # High, Medium, Low
+
+class InvestigationRequest(BaseModel):
+    repository_id: Optional[str] = None
+    repository: Optional[str] = None
+    query: str
+
+class InvestigationResponse(BaseModel):
+    query: str
+    target: str
+    impact: ImpactChain
+    root_cause: RootCause
+    risk: RiskAssessment
+    evidence: List[EvidenceItem] = []
+    affected_files: List[str] = []
+    affected_functions: List[str] = []
+    trace: List[str] = []
+

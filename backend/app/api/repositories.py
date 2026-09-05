@@ -14,14 +14,47 @@ router = APIRouter()
 
 @router.post("/repositories", response_model=RepositoryResponse)
 def create_repository(repo_in: RepositoryCreate):
-    path = os.path.abspath(repo_in.path)
-    if not os.path.isdir(path):
-        raise HTTPException(status_code=400, detail="Path is not a directory")
+    path = repo_in.path
+    git_url = repo_in.git_url
     
+    if not path and not git_url:
+        raise HTTPException(status_code=400, detail="Either 'path' or 'git_url' must be provided.")
+        
+    if git_url:
+        # Generate target directory in sample-repositories/cloned-repos
+        repo_name = git_url.rstrip("/").split("/")[-1]
+        if repo_name.endswith(".git"):
+            repo_name = repo_name[:-4]
+        if not repo_name:
+            repo_name = "cloned_repo_" + str(uuid.uuid4())[:8]
+            
+        base_clone_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "sample-repositories", "cloned-repos"))
+        os.makedirs(base_clone_dir, exist_ok=True)
+        clone_path = os.path.join(base_clone_dir, repo_name)
+        
+        if os.path.exists(clone_path):
+            clone_path = os.path.join(base_clone_dir, f"{repo_name}_{str(uuid.uuid4())[:6]}")
+            
+        try:
+            import git
+            git.Repo.clone_from(git_url, clone_path)
+            path = clone_path
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to clone repository from URL '{git_url}': {str(e)}")
+    else:
+        path = os.path.abspath(path)
+        if not os.path.isdir(path):
+            raise HTTPException(status_code=400, detail="Provided local path is not a valid directory")
+            
     try:
         repo = GitService.get_repo(path)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # If not a git repo, attempt git init so GitService works smoothly
+        try:
+            import git
+            git.Repo.init(path)
+        except Exception:
+            raise HTTPException(status_code=400, detail=str(e))
         
     repo_id = str(uuid.uuid4())
     name = os.path.basename(path.rstrip("\\/"))
@@ -40,9 +73,16 @@ def create_repository(repo_in: RepositoryCreate):
         raise HTTPException(status_code=400, detail="Repository already registered or DB error")
         
     conn.close()
+    
+    # Auto-run AST symbol & relationship analysis upon import
+    try:
+        _run_analysis(repo_id, path)
+    except Exception as e:
+        print(f"Auto-analysis failed during repository import: {e}")
+        
     return RepositoryResponse(
         id=repo_id, name=name, path=path, 
-        analysis_status="NOT_ANALYZED", created_at=datetime.datetime.fromisoformat(now)
+        analysis_status="ANALYZED", created_at=datetime.datetime.fromisoformat(now)
     )
 
 @router.get("/repositories", response_model=List[RepositoryResponse])

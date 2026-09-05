@@ -13,9 +13,15 @@ def write_file(rel_path, content):
     with open(path, "w") as f:
         f.write(content)
 
+import stat
+
+def remove_readonly(func, path, _):
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
 def main():
     if os.path.exists(REPO_DIR):
-        shutil.rmtree(REPO_DIR)
+        shutil.rmtree(REPO_DIR, onerror=remove_readonly)
     os.makedirs(REPO_DIR)
 
     run_cmd("git init")
