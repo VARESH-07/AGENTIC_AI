@@ -100,3 +100,33 @@ class InvestigationResponse(BaseModel):
     affected_functions: List[str] = []
     trace: List[str] = []
 
+class FunctionImpactRequest(BaseModel):
+    repository_id: Optional[str] = None
+    repository: Optional[str] = None
+    target_symbol: Optional[str] = None
+    function: Optional[str] = None
+    file_path: Optional[str] = None
+    symbol_id: Optional[str] = None
+
+class RippleImpactRequest(BaseModel):
+    repository_id: Optional[str] = None
+    repository: Optional[str] = None
+    module: Optional[str] = None
+    target_module: Optional[str] = None
+    file_path: Optional[str] = None
+
+class RippleImpactResponse(BaseModel):
+    analysis_type: str = "ripple"
+    repository_id: str
+    repository: str
+    target_module: str
+    affected_modules: List[str] = []
+    affected_functions: List[str] = []
+    affected_tests: List[str] = []
+    impact_chain: List[str] = []
+    risk: str
+    risk_score: int
+    reasons: List[str] = []
+    reason: Optional[str] = None
+
+

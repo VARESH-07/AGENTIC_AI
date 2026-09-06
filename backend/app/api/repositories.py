@@ -3,14 +3,19 @@ from typing import List, Any
 import uuid
 import os
 import datetime
-from app.models.schemas import RepositoryCreate, RepositoryResponse, TestRunRequest, TestResultSchema, GraphResponse
+from app.models.schemas import (
+    RepositoryCreate, RepositoryResponse, TestRunRequest,
+    FunctionImpactRequest, RippleImpactRequest, RippleImpactResponse
+)
 from app.database.connection import DBConnection
 from app.git.service import GitService
 from app.tools import agent_tools
 from app.analysis.symbols import extract_symbols
 from app.analysis.relationships import extract_relationships
+from app.analysis.investigator import CodeImpactInvestigator
 
 router = APIRouter()
+
 
 @router.post("/repositories", response_model=RepositoryResponse)
 def create_repository(repo_in: RepositoryCreate):
@@ -162,11 +167,30 @@ def get_symbols(repo_id: str):
 
 @router.get("/repositories/{repo_id}/graph")
 def get_graph(repo_id: str):
+    conn = DBConnection.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name FROM repositories WHERE id = ?", (repo_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    repo_name = row["name"]
+
     graph = agent_tools._build_graph(repo_id)
     nodes = []
     edges = []
     for n, data in graph.graph.nodes(data=True):
-        nodes.append({"id": n, "label": data.get("name", n), "type": data.get("type", "UNKNOWN"), "properties": data})
+        nodes.append({
+            "id": n,
+            "label": data.get("name", n),
+            "name": data.get("name", n),
+            "type": data.get("type", "UNKNOWN"),
+            "qualified_name": data.get("qualified_name"),
+            "file_path": data.get("file_path"),
+            "repository_id": repo_id,
+            "repository": repo_name,
+            "properties": data
+        })
     for u, v, data in graph.graph.edges(data=True):
         edges.append({"source": u, "target": v, "type": data.get("type", "UNKNOWN")})
     return {"nodes": nodes, "edges": edges}
@@ -176,9 +200,58 @@ def get_impact(repo_id: str, symbol_id: str):
     graph = agent_tools._build_graph(repo_id)
     return graph.calculate_impact(symbol_id)
 
+
+@router.post("/repositories/{repo_id}/function-impact")
+def post_function_impact(repo_id: str, req: FunctionImpactRequest):
+    target = req.target_symbol or req.function or req.symbol_id
+    if not target:
+        raise HTTPException(status_code=400, detail="Target symbol or function must be provided")
+    try:
+        res = CodeImpactInvestigator.analyze(repo_id, target_symbol=target, file_path=req.file_path)
+        return {
+            "analysis_type": "function",
+            "repository_id": repo_id,
+            "target": target,
+            "impact": res["impact"],
+            "risk": res["risk"],
+            "tests": res["tests"]
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/repositories/{repo_id}/ripple-impact", response_model=RippleImpactResponse)
+def post_ripple_impact(repo_id: str, req: RippleImpactRequest):
+    module_target = req.module or req.target_module or req.file_path
+    if not module_target:
+        raise HTTPException(status_code=400, detail="Target module or file path must be provided")
+    try:
+        res = CodeImpactInvestigator.analyze_ripple_impact(repo_id, target_module=module_target, file_path=req.file_path)
+        return RippleImpactResponse(**res)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/function-impact")
+def post_function_impact_standalone(req: FunctionImpactRequest):
+    repo_id = req.repository_id or req.repository
+    if not repo_id:
+        raise HTTPException(status_code=400, detail="Please select a repository.")
+    return post_function_impact(repo_id, req)
+
+@router.post("/ripple-impact", response_model=RippleImpactResponse)
+def post_ripple_impact_standalone(req: RippleImpactRequest):
+    repo_id = req.repository_id or req.repository
+    if not repo_id:
+        raise HTTPException(status_code=400, detail="Please select a repository.")
+    return post_ripple_impact(repo_id, req)
+
 @router.post("/repositories/{repo_id}/tests/run")
 def run_tests(repo_id: str, request: TestRunRequest):
     res = agent_tools.run_tests(repo_id, test_target=request.test_target, timeout=request.timeout)
     if not res.get("success"):
         raise HTTPException(status_code=500, detail=res.get("error"))
     return res["results"]
+

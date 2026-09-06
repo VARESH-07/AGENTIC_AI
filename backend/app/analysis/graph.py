@@ -19,7 +19,8 @@ class CodeGraph:
                                 qualified_name=sym.qualified_name, 
                                 type=sym.type,
                                 file_path=sym.file_path,
-                                line_start=sym.line_start)
+                                line_start=sym.line_start,
+                                repository_id=sym.repository_id)
                                 
         # Add edges
         for rel in relationships:
