@@ -31,3 +31,50 @@
   scrollbar-color: #334155 #0f172a;
 }
 
+/* Custom High-Visibility React Flow Controls */
+.react-flow__controls {
+  background: #0f172a !important;
+  border: 1.5px solid #475569 !important;
+  border-radius: 10px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.7), 0 8px 10px -6px rgba(0, 0, 0, 0.6) !important;
+  overflow: hidden !important;
+  padding: 2px !important;
+}
+
+.react-flow__controls-button {
+  background: #1e293b !important;
+  border-bottom: 1px solid #334155 !important;
+  color: #ffffff !important;
+  width: 36px !important;
+  height: 36px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.7) !important;
+}
+
+.react-flow__controls-button svg {
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+  width: 18px !important;
+  height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+}
+
+.react-flow__controls-button:hover svg {
+  fill: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+

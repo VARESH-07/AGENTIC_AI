@@ -749,10 +749,13 @@ function App() {
                   onNodesChange={onNodesChange}
                   onEdgesChange={onEdgesChange}
                   onNodeClick={handleNodeClick}
+                  minZoom={0.01}
+                  maxZoom={3.0}
                   fitView
+                  fitViewOptions={{ padding: 0.2 }}
                 >
                   <Background color="#334155" gap={16} />
-                  <Controls className="bg-slate-800 border-slate-700 fill-slate-300" />
+                  <Controls className="bg-slate-800 border-slate-700 fill-slate-100" />
                 </ReactFlow>
 
                 {/* Node Click Modal Details Card */}
