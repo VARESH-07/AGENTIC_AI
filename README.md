@@ -94,28 +94,21 @@ The agent operates over an extensible toolkit defined in `backend/app/tools/agen
 
 ---
 
-## ⚙️ Environment Configuration
+## 🔒 Secure Session-Only API Key Flow
 
-Users must configure their own **OpenRouter API Key** in the root `.env` file before running the agent.
-
-1. Create or edit `.env` in the project root:
-   ```ini
-   # OpenRouter API Key configuration
-   OPENROUTER_API_KEY=your_actual_openrouter_api_key_here
-   OPENROUTER_MODEL=minimax/minimax-m3:free
-   ```
-2. You can generate a free API key at [openrouter.ai](https://openrouter.ai/).
+Ripple AI uses a **session-only** OpenRouter API-key security architecture:
+- **No Disk Storage**: Your API key is NEVER saved to `.env`, disk, SQLite database, `localStorage`, or `sessionStorage`.
+- **In-Memory Only**: When submitted, the key is stored strictly in backend process memory for the duration of the current session.
+- **Automatic Discard**: When the backend process terminates or restarts, the session key is discarded automatically.
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### Prerequisites
-- Python 3.12+ installed
-- Node.js 18+ & npm installed
-
-### 1. Install Backend Dependencies
+### 1. Clone Ripple AI & Install Backend Dependencies
 ```bash
+git clone <repo-url>
+cd AGENTIC_AI
 pip install -r requirements.txt
 ```
 
@@ -128,16 +121,30 @@ cd ..
 
 ### 3. Bootstrap Sample Repository & Run Tests
 ```bash
-py backend/setup_sample_repo.py
-py -m pytest -v
+python backend/setup_sample_repo.py
+python -m pytest
 ```
 
-### 4. Start the Application
-
-#### Start Backend Server:
+### 4. Start Backend Server
 ```bash
-py backend/app/main.py
+python backend/app/main.py
 ```
+*(Backend starts on `http://localhost:8000`)*
+
+### 5. Start Frontend UI
+In a separate terminal:
+```bash
+cd frontend
+npm run dev
+```
+
+### 6. Enter Your OpenRouter API Key
+When you open Ripple AI in your browser:
+1. Ripple AI will check if an API key is configured for the current backend session.
+2. A secure modal prompt (**"OpenRouter API key required"**) will appear.
+3. Enter your OpenRouter API key (obtainable at [openrouter.ai](https://openrouter.ai/)) into the password input field.
+4. Click **[ Start / Continue ]**.
+5. Your key is stored ONLY in backend process memory for this active session. Restarting the backend process will require entering the key again.
 *Backend runs on `http://localhost:8000` (Swagger docs: `http://localhost:8000/docs`)*
 
 #### Start Frontend Web UI:

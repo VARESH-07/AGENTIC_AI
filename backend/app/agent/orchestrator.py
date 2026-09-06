@@ -187,9 +187,10 @@ class RippleOrchestrator:
         """
         # Run deterministic pipeline step by step for real-time trace streaming
         from app.agent.react_agent import RippleAgent
+        from app.agent.session import session_key_manager
 
         # If LLM key is configured, run LLM-guided agent
-        if os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GEMINI_API_KEY"):
+        if session_key_manager.is_configured() or os.environ.get("GEMINI_API_KEY"):
             llm_agent = RippleAgent(self.repo_id)
             async for step in llm_agent.investigate(query):
                 yield step

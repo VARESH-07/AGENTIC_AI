@@ -4,6 +4,7 @@ import asyncio
 from typing import AsyncGenerator
 from app.tools import agent_tools
 from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.session import session_key_manager
 
 OPENROUTER_TOOLS = [
     {
@@ -141,7 +142,11 @@ class RippleAgent:
 
     async def _investigate_openrouter(self, prompt: str) -> AsyncGenerator[str, None]:
         import httpx
-        api_key = os.environ.get("OPENROUTER_API_KEY")
+        api_key = session_key_manager.get_api_key()
+        if not api_key:
+            yield json.dumps({"type": "error", "message": "OpenRouter API key is not configured for this session."})
+            return
+
         model = os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
         
         yield json.dumps({"type": "status", "message": f"Starting investigation with OpenRouter ({model})..."})
@@ -173,6 +178,9 @@ class RippleAgent:
                         if r.status_code == 200:
                             resp = r.json()
                             break
+                        elif r.status_code in (401, 403):
+                            yield json.dumps({"type": "error", "message": "OpenRouter API key is invalid or was rejected."})
+                            return
                         elif r.status_code in (429, 503, 502):
                             yield json.dumps({"type": "thought", "message": f"OpenRouter busy/rate-limited ({r.status_code}). Retrying in {(attempt+1)*3}s..."})
                             await asyncio.sleep(3 * (attempt + 1))
@@ -292,9 +300,11 @@ class RippleAgent:
                 current_prompt = types.Part.from_function_response(name=tool_name, response=result)
 
     async def investigate(self, prompt: str) -> AsyncGenerator[str, None]:
-        if os.environ.get("OPENROUTER_API_KEY"):
+        if session_key_manager.is_configured():
             async for step in self._investigate_openrouter(prompt):
                 yield step
-        else:
+        elif os.environ.get("GEMINI_API_KEY"):
             async for step in self._investigate_gemini(prompt):
                 yield step
+        else:
+            yield json.dumps({"type": "error", "message": "OpenRouter API key is not configured for this session."})

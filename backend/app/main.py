@@ -20,7 +20,7 @@ _load_env()
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import repositories, investigation
+from app.api import repositories, investigation, config
 from app.database.connection import DBConnection
 import os
 
@@ -38,6 +38,8 @@ app.add_middleware(
 # Include routers
 app.include_router(repositories.router, prefix="/api/v1")
 app.include_router(investigation.router, prefix="/api/v1")
+app.include_router(config.router, prefix="/api/v1")
+app.include_router(config.router, prefix="/api")
 
 @app.on_event("startup")
 def startup_event():

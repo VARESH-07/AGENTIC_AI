@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { ReactFlow, Controls, Background, applyNodeChanges, applyEdgeChanges, type Node, type Edge, type NodeChange, type EdgeChange } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import axios from 'axios'
-import { Play, FileCode2, Network, Terminal, ShieldAlert, CheckCircle2, AlertTriangle, Layers, X, Info, Plus, GitBranch, FolderOpen, Loader2, RefreshCw } from 'lucide-react'
+import { Play, FileCode2, Network, Terminal, ShieldAlert, CheckCircle2, AlertTriangle, Layers, X, Info, Plus, GitBranch, FolderOpen, Loader2, RefreshCw, Key } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const API_BASE = 'http://localhost:8000/api/v1'
@@ -105,6 +105,13 @@ function App() {
   const [isImporting, setIsImporting] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   
+  // API Key Session State
+  const [isKeyConfigured, setIsKeyConfigured] = useState<boolean | null>(null)
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [apiKeySubmitting, setApiKeySubmitting] = useState(false)
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
+
   const wsRef = useRef<WebSocket | null>(null)
   const chatContainerRef = useRef<HTMLDivElement | null>(null)
 
@@ -115,8 +122,55 @@ function App() {
   }, [messages, functionImpactResult, rippleImpactResult, analysisStatus, analysisError])
 
   useEffect(() => {
+    checkApiKeyStatus()
     fetchRepos()
   }, [])
+
+  const checkApiKeyStatus = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/config/api-key/status`)
+      if (res.data && res.data.configured === true) {
+        setIsKeyConfigured(true)
+        setShowApiKeyModal(false)
+      } else {
+        setIsKeyConfigured(false)
+        setShowApiKeyModal(true)
+      }
+    } catch (e) {
+      console.error("API Key status check error:", e)
+      setIsKeyConfigured(false)
+      setShowApiKeyModal(true)
+    }
+  }
+
+  const handleApiKeySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!apiKeyInput.trim()) {
+      setApiKeyError("Please enter a valid OpenRouter API key.")
+      return
+    }
+    setApiKeySubmitting(true)
+    setApiKeyError(null)
+
+    try {
+      const res = await axios.post(`${API_BASE}/config/api-key`, {
+        api_key: apiKeyInput.trim()
+      })
+      if (res.data && res.data.configured === true) {
+        setIsKeyConfigured(true)
+        setShowApiKeyModal(false)
+        setApiKeyInput("") // Clear secret input immediately for security
+        setApiKeyError(null)
+      } else {
+        setApiKeyError("OpenRouter API key configuration failed.")
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || "OpenRouter API key is invalid or was rejected."
+      setApiKeyError(msg)
+    } finally {
+      setApiKeySubmitting(false)
+    }
+  }
 
   const fetchRepos = async () => {
     try {
@@ -276,6 +330,15 @@ function App() {
     ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
+        if (data.type === 'error' && (
+          String(data.message).includes('OpenRouter API key') ||
+          String(data.message).includes('not configured') ||
+          String(data.message).includes('invalid or was rejected')
+        )) {
+          setIsKeyConfigured(false)
+          setShowApiKeyModal(true)
+          setApiKeyError(data.message)
+        }
         setMessages(prev => [...prev, { type: data.type, content: data.message }])
       } catch (e) {
         console.error(e)
@@ -302,6 +365,11 @@ function App() {
 
   const sendMessage = async () => {
     if (!input.trim() || !activeRepo) return
+    if (!isKeyConfigured) {
+      setShowApiKeyModal(true)
+      setApiKeyError("OpenRouter API key is not configured for this session.")
+      return
+    }
     const query = input
     setMessages(prev => [...prev, { type: 'user', content: query }])
     setInput("")
@@ -420,13 +488,31 @@ function App() {
           </h1>
         </div>
 
-        <div className="p-3 border-b border-slate-700/60">
+        <div className="p-3 border-b border-slate-700/60 space-y-2">
           <button
             onClick={() => setIsImportOpen(true)}
             className="w-full bg-teal-600 hover:bg-teal-500 text-white text-xs font-semibold py-2 px-3 rounded-lg flex items-center justify-center gap-2 shadow transition-all duration-200"
           >
             <Plus size={16} />
             Import Repository
+          </button>
+          
+          <button
+            onClick={() => { setApiKeyError(null); setShowApiKeyModal(true); }}
+            className={`w-full py-2 px-3 rounded-lg flex items-center justify-between text-xs transition-all border ${
+              isKeyConfigured
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+            }`}
+            title="Configure OpenRouter Session API Key"
+          >
+            <div className="flex items-center gap-2 truncate">
+              <Key size={14} className="shrink-0" />
+              <span className="truncate">{isKeyConfigured ? 'Session Key Active' : 'API Key Required'}</span>
+            </div>
+            <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-slate-900/40">
+              {isKeyConfigured ? 'Active' : 'Setup'}
+            </span>
           </button>
         </div>
         
@@ -1013,6 +1099,91 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* OpenRouter API Key Session Modal */}
+      {showApiKeyModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md shadow-2xl relative"
+          >
+            {isKeyConfigured && (
+              <button 
+                onClick={() => { setShowApiKeyModal(false); setApiKeyError(null); setApiKeyInput(""); }}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-200 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            )}
+
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-blue-500/20 text-blue-400 rounded-lg border border-blue-500/30">
+                <Key size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-100">OpenRouter API key required</h3>
+                <p className="text-xs text-slate-400">Session Security Configuration</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-slate-300 mb-5 leading-relaxed">
+              Enter your OpenRouter API key to use Ripple AI's AI features. Your key will be used only for this session.
+            </p>
+
+            <form onSubmit={handleApiKeySubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  OpenRouter API Key
+                </label>
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="sk-or-v1-..."
+                  autoComplete="off"
+                  required
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all font-mono"
+                />
+              </div>
+
+              {apiKeyError && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-start gap-2">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <span>{apiKeyError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                {isKeyConfigured && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowApiKeyModal(false); setApiKeyError(null); setApiKeyInput(""); }}
+                    className="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  disabled={apiKeySubmitting || !apiKeyInput.trim()}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-teal-600 hover:from-blue-500 hover:to-teal-500 text-white text-sm font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 shadow transition-all duration-200 disabled:opacity-50"
+                >
+                  {apiKeySubmitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Validating Key...
+                    </>
+                  ) : (
+                    'Start / Continue'
+                  )}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+        </div>
+      )}
     </div>
   )
 }
