@@ -159,7 +159,8 @@ function App() {
   const loadGraph = async (repoId: string, highlightNodes: string[] = [], highlightType: 'function' | 'ripple' = 'function') => {
     try {
       const res = await axios.get(`${API_BASE}/repositories/${repoId}/graph`)
-      const fetchedNodes = res.data.nodes.map((n: any) => {
+      const rawNodes = res.data.nodes || []
+      const fetchedNodes = rawNodes.map((n: any, index: number) => {
         const isImpacted = highlightNodes.some(h => 
           h === n.label || h === n.id || h === n.name || h === n.file_path || (n.file_path && n.file_path.endsWith(h))
         )
@@ -181,6 +182,27 @@ function App() {
           }
         }
 
+        // Calculate sparse architectural grid positions (Modules -> Classes -> Functions)
+        const typeStr = String(n.type || '').toUpperCase()
+        let tier = 2
+        if (['FILE', 'MODULE', 'PACKAGE'].includes(typeStr)) tier = 0
+        else if (['CLASS', 'INTERFACE'].includes(typeStr)) tier = 1
+
+        const sameTierNodes = rawNodes.filter((item: any) => {
+          const t = String(item.type || '').toUpperCase()
+          if (tier === 0) return ['FILE', 'MODULE', 'PACKAGE'].includes(t)
+          if (tier === 1) return ['CLASS', 'INTERFACE'].includes(t)
+          return !['FILE', 'MODULE', 'PACKAGE', 'CLASS', 'INTERFACE'].includes(t)
+        })
+
+        const itemIndexInTier = sameTierNodes.findIndex((item: any) => item.id === n.id)
+        const colsPerRow = Math.max(3, Math.ceil(Math.sqrt(sameTierNodes.length * 1.8)))
+        const col = itemIndexInTier >= 0 ? itemIndexInTier % colsPerRow : index % 4
+        const row = itemIndexInTier >= 0 ? Math.floor(itemIndexInTier / colsPerRow) : Math.floor(index / 4)
+
+        const posX = col * 380 + (row % 2 === 1 ? 50 : 0)
+        const posY = tier * 320 + row * 220
+
         return {
           id: n.id,
           type: n.type,
@@ -194,13 +216,15 @@ function App() {
             file_path: n.file_path || n.properties?.file_path,
             fullData: n 
           },
-          position: { x: Math.random() * 500, y: Math.random() * 500 },
+          position: { x: posX, y: posY },
           style: {
             background: bg,
             color: 'white',
             border: border,
             borderRadius: '8px',
-            padding: '10px',
+            padding: '12px 18px',
+            fontWeight: 500,
+            fontSize: '13px',
             boxShadow: boxShadow
           }
         }
